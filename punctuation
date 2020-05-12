@@ -1,0 +1,111 @@
+import re, os
+
+import pandas as pd
+from os import listdir
+from os.path import isfile, join
+
+
+# открываем файлы
+def open_file(filename):
+    with open(filename, encoding='utf-8') as f:
+        text = f.read()
+        t = text.split('@')
+    return t
+
+
+# чистим файлы
+def file_to_list(filename):
+    #texts = []
+    sentences = []
+    for i in open_file(filename):
+        i_1 = re.sub('(<.*?>)', '', i)
+        i_2 = re.sub(r'\n', '', i_1)
+        sentences.append(i_2)
+    return sentences
+
+    
+# ищем ошибки
+def find_errors(filename):
+    errors = []
+    
+    list_b = [r"From [A-Z]?[a-z]{1,8}('s')? (?:point of view|viewpoint|perspective)",\
+             r'To [a-z]{2,6} mind',\
+             r'For (?:example(s)?|instance)',\
+             '(?:However|Consequently|To start with|Firstly|Secondly|Thirdly|Moreover|On the other hand|In other words|In short|Surprisingly|Unsurprisingly|Hopefully|Interestingly|Obviously|In conclusion|To conclude|To sum up|Thus).*']
+    point = r'(?:and|but) from [a-z]{2,5} (?:point of view|viewpoint|perspective)'
+    list_m = [r'for (?:example|instance)', \
+             r'(?:however|to start with|moreover|on the other hand|in other words|hopefully|interestingly)']
+    
+    sents = []
+    for el in file_to_list(filename):
+        sent = re.split(r'(?<=[.!?…]) ', el)
+        sents.extend(sent)
+    for q in sents:
+        for ch in list_b:
+            if re.findall(ch, q):
+                if check_b(ch, q) != 0:
+                    errors.append(q)
+        for ch in list_m:
+            if re.findall(ch, q):
+                if check_m(ch, q) != 0:
+                    errors.append(q)
+        if re.findall(point, q):
+            if re.findall(r'.* (?:and|but)( )?(?:—|-|:|)( )?from [a-z]{2,5} (?:point of view|viewpoint|perspective), ', q):
+                pass
+            elif re.findall(point + r'( )?(?:—|-|:|\.)', q):
+                pass
+            else:
+                errors.append(q)
+        elif re.findall('\Wthus\W', q):
+            if re.findall('and thus', q):
+                pass
+            elif re.findall(r'(?:am|are|is|was|were|have been|has been|had been) thus', q):
+                pass
+            elif check_m('thus', q) != 0:
+                errors.append(q)
+    return errors
+
+def check_b(regex, line):
+    if re.findall(regex + r'( )?(?:\,|\:|\;|-)', line):
+        return 0
+    elif re.findall(r'To conclude the (?:essay|argument|argumentation|description|story)', line) or\
+    re.findall(r'In conclusion (?:[A-Z]|we|it|of)', line):
+        return 0
+    else:
+        return line
+
+
+def check_m(regex, line):
+    if re.findall(regex + r'\)', line):
+        return 0
+    elif re.findall(r'( ){0,2}(?:—|-|\:|,|\;)( )?' + regex + '( ){0,2}(?:—|-|\:|,|\.|\;)', line):
+        return 0
+    else:
+        return line
+
+    
+def writeln(d, list_of_dicts, filename):
+    errors = find_errors(d+'/'+filename)
+
+    for error in errors:
+        d = {}
+        d['File'] = filename
+        d['Error'] = error
+        list_of_dicts.append(d)
+
+def main():
+    list_of_dicts = []
+    directory =  '/Users/pikachu/Desktop/new'
+    dirs = [x[0] for x in os.walk(directory)]
+    for d in dirs:
+        onlyfiles = [f for f in listdir(d) if isfile(join(d, f))]
+        for filename in onlyfiles:
+            if filename.endswith(".txt"):
+                writeln(d, list_of_dicts, filename)
+    df = pd.DataFrame(list_of_dicts)
+    df.to_excel('/Users/pikachu/Desktop/ex_2.xlsx', index=False)
+
+
+if __name__ == '__main__':
+    main()
+
