@@ -1,0 +1,127 @@
+import re, os
+
+import pandas as pd
+from os import listdir
+from os.path import isfile, join
+
+# открываем файлы
+def open_file(filename):
+    with open(filename, encoding='utf-8') as f:
+        text = f.read()
+        t = re.sub(r'\n', '', text)
+        t = t.split('@')
+    return t
+
+def find_errors(filename):
+    errors = []
+    errors_sentences = []
+    t = open_file(filename)
+    
+    many_few_fewer_several_both = r'<(?:(?:M|m)any|(?:F|f)ew|(?:F|f)ewer|(?:S|s)everal|(?:B|b)oth|(?:E|e)ither) DT0>(<\S*? AT0>)?(<\S*? DT0>)?(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN1>'
+    bit_amount_deal = r'(?:(<(?:bit|amount) \S*?>)|(<(?:great|good) AJ0><deal NN1>))<of PRF>(<\S*? AT0>)?(<\S*? DT0>)?(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN2>'
+    number_couple_of = r'<(?:number(s)?|couple) NN1><of PRF>(<\S*? AT0>)?(<\S*? DT0>)?(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN1>'
+    h_thous_mil_s = r'<(?:(?:H|h)undred(s)?|(?:T|t)housand(s)?|(?:M|m)illion(s)?|(?:B|b)illion(s)?) CRD><of PRF>(<\S*? AT0>)?(<\S*? DT0>)?(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN1>'
+    little_much_less_least = r'(<the \S*?>)?<(?:little|much|less|least) DT0>(<\S*? AT0>)?(<\S*? DT0>)?(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN2>'
+    two_hundreds ='<\S*? CRD><(?:hundreds|thousands|millions|billions) \S*?>'
+    one = r'<one CRD><\S*? NN2>'
+    numbers = r'<\w*? CRD>(<\S*? AT0>)?(<\S*? DT0>)?(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN1>'
+    
+    for index in range(len(t)):
+        sent_and_mark = re.split(r'(?<=[.!?…])> ', t[index])
+        s_and_m = ' '.join(sent_and_mark)
+        marking = re.findall(r'<.*>', s_and_m)
+        sentence = re.sub('\n', '',re.split(r'<.*>', s_and_m)[0])
+        q = ' '.join(marking)
+
+        speople = r'<((sports)?people) \S*?>'
+        species = r'<species \S*?>'
+        sfind = re.findall(speople, q)
+        # no 'people' or 'sportspeople' in NN0
+        if sfind:
+            if 'sports' in sfind[0]:
+                q = re.sub(r'<sportspeople (\S*?)>', r'<sportspeople NN2>', q)
+            else:
+                q = re.sub(r'<people (\S*?)>', r'<people NN2>', q)
+        # no 'species'
+        elif species:
+            q = re.sub(r'<species \S*?>', '', q)
+        
+        ## MANY/FEW/FEWER/SEVERAL/BOTH + NN1
+        # no 'many sport facilities' type
+        if re.findall(many_few_fewer_several_both + '<\S*? NN2>',q):
+            pass
+        elif re.findall(many_few_fewer_several_both, q):
+            if re.findall(r'<(?:B|b)oth DT0>(<\S*? ADV)?(<the \S*?><most \S*?>)?(<\S*? AJ0>)?<\S*? NN[0-9]>(<\S*? POS>)?<and CJC>', q):
+                pass
+            else:
+                errors.append(q)
+                errors_sentences.append(sentence)
+
+        #BIT/AMOUNT/DEAL + OF + NN2
+        elif re.findall(bit_amount_deal, q):
+            # no 'many sport facilities' type
+            if re.findall(bit_amount_deal + '<\S*? NN2>',q):
+                pass
+            # no 'amount of' + gases' or 'substances'
+            elif re.findall(r'<amount \S*?><of PRF><(?:gases|substances) NN[0-9]>', q):
+                pass
+            else:
+                errors.append(q)
+                errors_sentences.append(sentence)
+            
+        # NUMBER/COUPLE + OF
+        elif re.findall(number_couple_of, q):
+            if re.findall(number_couple_of + '<\S*? NN2>', q):
+                pass
+            elif re.findall(r'<percentage NN[0-9]><number(s)? NN1><of PRF>', q):
+                pass
+            else:
+                errors.append(q)
+                errors_sentences.append(sentence)
+        ## HUNDRED(S)... + OF + NN1
+        elif re.findall(h_thous_mil_s, q):
+            if re.findall(h_thous_mil_s + '<\S*? NN2>', q):
+                pass
+            else:
+                errors.append(q)
+                errors_sentences.append(sentence)
+        # LITTLE/MUCH/LESS/THE LEAST + NN2
+        elif re.findall(little_much_less_least, q):
+            errors.append(q)
+            errors_sentences.append(sentence)
+        # number + 'hundreds' type
+        elif re.findall(two_hundreds, q):
+            errors.append(q)
+            errors_sentences.append(sentence)
+        ## one + NN2
+        elif re.findall(one, q):
+            errors.append(q)
+            errors_sentences.append(sentence)
+
+    return errors_sentences
+
+
+def writeln(d, list_of_dicts, filename):
+    errors = find_errors(d+'/'+filename)
+    for error in errors:
+        d = {}
+        d['File'] = filename
+        d['Error'] = error
+        list_of_dicts.append(d)
+
+
+def main():
+    list_of_dicts = []
+    directory =  '/Users/pikachu/Desktop/new'
+    dirs = [x[0] for x in os.walk(directory)]
+    for d in dirs:
+        onlyfiles = [f for f in listdir(d) if isfile(join(d, f))]
+        for filename in onlyfiles:
+            if filename.endswith(".txt"):
+                writeln(d, list_of_dicts, filename)
+    df = pd.DataFrame(list_of_dicts)
+    df.to_excel('/Users/pikachu/Desktop/COUNT_13_MAY.xlsx', index=False)
+
+
+if __name__ == '__main__':
+    main()
