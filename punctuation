@@ -27,14 +27,9 @@ def file_to_list(filename):
 # ищем ошибки
 def find_errors(filename):
     errors = []
-    
-    list_b = [r"From [A-Z]?[a-z]{1,8}('s')? (?:point of view|viewpoint|perspective)",\
-             r'To [a-z]{2,6} mind',\
-             r'For (?:example(s)?|instance)',\
-             '(?:However|Consequently|To start with|Firstly|Secondly|Thirdly|Moreover|On the other hand|In other words|In short|Surprisingly|Unsurprisingly|Hopefully|Interestingly|Obviously|In conclusion|To conclude|To sum up|Thus).*']
+    list_b = [r"From [A-Z]?[a-z]{1,8}('s')? (?:point of view|viewpoint|perspective)", r'To [a-z]{2,6} mind', r'For (?:example(s)?|instance)','(?:However|Consequently|To start with|Firstly|Secondly|Thirdly|Moreover|On the other hand|In other words|In short|Surprisingly|Unsurprisingly|Hopefully|Interestingly|Obviously|In conclusion|To conclude|To sum up|Thus)']
     point = r'(?:and|but) from [a-z]{2,5} (?:point of view|viewpoint|perspective)'
-    list_m = [r'for (?:example|instance)', \
-             r'(?:however|to start with|moreover|on the other hand|in other words|hopefully|interestingly)']
+    list_m = [r'for (?:example|instance)',r'(?:however|to start with|moreover|on the other hand|in other words|hopefully|interestingly)']
     
     sents = []
     for el in file_to_list(filename):
@@ -66,7 +61,8 @@ def find_errors(filename):
     return errors
 
 def check_b(regex, line):
-    if re.findall(regex + r'( )?(?:\,|\:|\;|-)', line):
+    c = regex + r'( ){0,2}(?:\:|,|\;|-)'
+    if re.findall(c, line):
         return 0
     elif re.findall(r'To conclude the (?:essay|argument|argumentation|description|story)', line) or\
     re.findall(r'In conclusion (?:[A-Z]|we|it|of)', line):
